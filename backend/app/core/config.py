@@ -28,8 +28,8 @@ class Settings(BaseSettings):
     @field_validator("DATABASE_URL")
     @classmethod
     def validate_database_url(cls, v: str) -> str:
-        if not v.startswith("postgresql://") and not v.startswith("postgresql+psycopg2://"):
-            raise ValueError("DATABASE_URL must be a PostgreSQL connection string")
+        if not v.startswith("postgresql://") and not v.startswith("sqlite:///"):
+            raise ValueError("DATABASE_URL must be a PostgreSQL or SQLite connection string")
         return v
 
     @property

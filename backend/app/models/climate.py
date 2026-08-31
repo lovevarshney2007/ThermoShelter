@@ -1,7 +1,7 @@
 from datetime import datetime
 from sqlalchemy import Float, ForeignKey, DateTime, func
 from sqlalchemy import String
-from sqlalchemy.dialects.postgresql import JSONB
+from app.utils.db_types import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.database.base import Base
 
