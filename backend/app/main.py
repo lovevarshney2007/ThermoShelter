@@ -1,11 +1,8 @@
 """
-ThermoShelter API — main application entry point.
+ThermoShelter API v2 — main application entry point.
 
-Startup sequence:
-  1. FastAPI app is created with CORS, metadata, and lifespan handler.
-  2. On startup: DB tables are created (safety net) and seed data is inserted.
-  3. All routers are registered.
-  4. Health check endpoint is mounted directly here.
+Architecture:
+  Frontend → FastAPI (orchestration) → Redis/Celery (jobs) → Scientific Engine → PostgreSQL
 """
 
 from contextlib import asynccontextmanager
@@ -36,45 +33,37 @@ from app.routers import (
 )
 
 
-# ──────────────────────────────────────────────────────────────────────────────
-# Lifespan — startup / shutdown hooks
-# ──────────────────────────────────────────────────────────────────────────────
-
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Run seed tasks on startup."""
+    """Startup: seed database. Shutdown: (no-op currently)."""
     db = SessionLocal()
     try:
         init_db(db)
-        print(f"[startup] {settings.APP_NAME} is ready.")
+        mode = "async (Celery+Redis)" if settings.USE_BACKGROUND_JOBS else "synchronous fallback"
+        print(f"[startup] {settings.APP_NAME} v{settings.API_VERSION} ready — job mode: {mode}")
     finally:
         db.close()
     yield
-    # shutdown actions (none needed currently)
 
-
-# ──────────────────────────────────────────────────────────────────────────────
-# Application factory
-# ──────────────────────────────────────────────────────────────────────────────
 
 app = FastAPI(
     title=settings.APP_NAME,
     description=(
-        "Backend API for ThermoShelter — a shelter thermal analysis and "
-        "optimisation platform. Supports project management, climate "
-        "configuration, shelter configuration, thermal simulation, "
-        "multi-objective optimisation, and report generation."
+        "**ThermoShelter API v2** — Shelter thermal analysis and optimisation platform.\n\n"
+        "Architecture:\n"
+        "- **FastAPI** handles API, validation, orchestration, persistence\n"
+        "- **Scientific Engine** (`/scientific_engine`) handles physics, transient simulation, optimization\n"
+        "- **Celery + Redis** handles background job execution (configurable)\n\n"
+        "Feature flags (`.env`):\n"
+        "- `USE_BACKGROUND_JOBS=false` → synchronous mode (no Redis needed)\n"
+        "- `USE_MOCK_SIMULATION=true` → mock physics engine\n"
+        "- `USE_MOCK_OPTIMIZATION=true` → mock optimizer"
     ),
-    version="1.0.0",
+    version=settings.API_VERSION,
     docs_url="/docs",
     redoc_url="/redoc",
     lifespan=lifespan,
 )
-
-
-# ──────────────────────────────────────────────────────────────────────────────
-# CORS
-# ──────────────────────────────────────────────────────────────────────────────
 
 app.add_middleware(
     CORSMiddleware,
@@ -85,19 +74,18 @@ app.add_middleware(
 )
 
 
-# ──────────────────────────────────────────────────────────────────────────────
-# Health check
-# ──────────────────────────────────────────────────────────────────────────────
-
 @app.get("/health", tags=["Health"])
 def health_check():
-    """Simple liveness probe."""
-    return {"status": "healthy", "app": settings.APP_NAME}
+    """Liveness probe — returns app version and feature flag state."""
+    return {
+        "status": "healthy",
+        "app": settings.APP_NAME,
+        "version": settings.API_VERSION,
+        "background_jobs": settings.USE_BACKGROUND_JOBS,
+        "mock_simulation": settings.USE_MOCK_SIMULATION,
+        "mock_optimization": settings.USE_MOCK_OPTIMIZATION,
+    }
 
-
-# ──────────────────────────────────────────────────────────────────────────────
-# Routers
-# ──────────────────────────────────────────────────────────────────────────────
 
 app.include_router(projects.router)
 app.include_router(climates.router)

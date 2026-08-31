@@ -1,267 +1,316 @@
-# ThermoShelter Backend
+# ThermoShelter Backend — v2
 
-A thermal analysis and optimisation platform for shelters and buildings.
-
-Built with **FastAPI**, **PostgreSQL**, **SQLAlchemy**, and **Alembic**.
+A shelter thermal analysis and optimisation platform built with **FastAPI + PostgreSQL + Celery + Redis**.
 
 ---
 
-## Tech Stack
+## Architecture
 
-| Component   | Technology          |
-|-------------|---------------------|
-| Framework   | FastAPI             |
-| Language    | Python 3.11+        |
-| Database    | PostgreSQL          |
-| ORM         | SQLAlchemy 2.0      |
-| Validation  | Pydantic v2         |
-| Migrations  | Alembic             |
-| Server      | Uvicorn             |
-| Config      | pydantic-settings   |
+```
+Frontend
+    ↓
+FastAPI API Layer (orchestration, validation, persistence)
+    ↓
+Background Job Layer (Celery + Redis)
+    ↓
+Scientific Engine (thermal physics, transient simulation, optimization)
+    ↓
+PostgreSQL (results, history, traceability)
+    ↓
+FastAPI → Frontend
+```
+
+### Responsibility Boundaries
+
+| Layer | Owns |
+|-------|------|
+| **FastAPI** | API routes, Pydantic validation, DB persistence, job creation, orchestration |
+| **Scientific Engine** (`app/scientific_engine/`) | Thermal physics, transient simulation, optimization algorithms |
+| **Celery Workers** (`app/workers/`) | Background task execution, status updates |
+| **PostgreSQL** | Project data, simulation history, optimization results |
 
 ---
 
 ## Project Structure
 
-```text
+```
 backend/
 ├── app/
-│   ├── main.py              ← FastAPI app factory & router registration
+│   ├── main.py                         # FastAPI entry point
 │   ├── core/
-│   │   └── config.py        ← Settings from .env
+│   │   ├── config.py                   # Settings + feature flags
+│   │   └── constants.py                # Enums, status types, physics defaults
 │   ├── database/
-│   │   ├── base.py          ← SQLAlchemy DeclarativeBase
-│   │   ├── session.py       ← Engine, SessionLocal, get_db dependency
-│   │   └── init_db.py       ← Seed data (materials + climate presets)
-│   ├── models/              ← SQLAlchemy ORM models
-│   ├── schemas/             ← Pydantic request/response schemas
-│   ├── routers/             ← FastAPI route handlers
-│   ├── services/            ← Business logic (simulation, optimisation, report)
-│   └── utils/               ← Shared helpers
-├── alembic/                 ← Database migrations
+│   │   ├── base.py / session.py        # SQLAlchemy setup
+│   │   └── init_db.py                  # Seed data (materials, presets)
+│   ├── models/                         # SQLAlchemy ORM models
+│   │   ├── project.py / climate.py / shelter.py / material.py
+│   │   ├── simulation.py               # SimulationRun + SimulationResult
+│   │   └── optimization.py             # OptimizationRun + OptimizationCandidate
+│   ├── schemas/
+│   │   ├── contracts.py                ← GLOBAL DATA CONTRACTS (source of truth)
+│   │   ├── report.py                   # Report schema
+│   │   └── ...                         # Per-entity schemas
+│   ├── routers/                        # FastAPI route handlers
+│   ├── services/
+│   │   ├── project_service.py          # DB → typed request assembly
+│   │   ├── validation_service.py       # Pre-flight engineering validation
+│   │   ├── comparison_service.py       # Baseline vs optimized comparison
+│   │   ├── recommendation_service.py   # Explainability / reasoning
+│   │   ├── simulation_service.py       # (legacy, kept for compatibility)
+│   │   ├── optimization_service.py     # (legacy, kept for compatibility)
+│   │   └── report_service.py           # Full project report assembly
+│   ├── workers/
+│   │   ├── celery_app.py               # Celery configuration
+│   │   ├── simulation_tasks.py         # Celery simulation task
+│   │   └── optimization_tasks.py       # Celery optimization task
+│   └── scientific_engine/              ← SCIENTIFIC TEAM OWNS THIS
+│       ├── contracts.py                # Re-exports from schemas/contracts.py
+│       ├── physics/engine.py           # Thermal simulation engine (mock + stub)
+│       ├── transient/solver.py         # Time-series transient wrapper
+│       └── optimization/engine.py      # Optimization engine (mock + stub)
+├── alembic/versions/
+│   ├── 001_initial_schema.py           # Initial 8 tables
+│   └── 002_v2_architecture.py          # v2 columns (task_id, comfort metrics, etc.)
+├── docker-compose.yml                  # Postgres + Redis + FastAPI + Celery
 ├── requirements.txt
-├── .env.example
-├── alembic.ini
-└── README.md
+└── .env.example
 ```
 
 ---
 
-## Installation
+## Feature Flags
 
-### 1. Clone the repository
+Controlled via `.env` — no code changes needed:
 
-```bash
-git clone <repository-url>
-cd ThermoShelter/backend
-```
+| Flag | Default | Description |
+|------|---------|-------------|
+| `USE_BACKGROUND_JOBS` | `false` | `true` = async via Celery; `false` = synchronous fallback |
+| `USE_MOCK_SIMULATION` | `true` | `true` = mock physics; `false` = real engine |
+| `USE_MOCK_OPTIMIZATION` | `true` | `true` = mock optimizer; `false` = real engine |
 
-### 2. Create a virtual environment
+> **For development without Redis:** Keep `USE_BACKGROUND_JOBS=false`. Everything runs synchronously.
 
-```bash
-python3 -m venv venv
-source venv/bin/activate      # Linux/macOS
-# OR
-venv\Scripts\activate         # Windows
-```
+---
 
-### 3. Install dependencies
+## How to Run
+
+### Option A — Local (no Docker)
 
 ```bash
+cd backend
+python -m venv venv
+source venv/bin/activate
 pip install -r requirements.txt
-```
 
----
-
-## Environment Setup
-
-Copy the example and fill in your values:
-
-```bash
+# Configure database
 cp .env.example .env
-```
+# Edit .env: set DATABASE_URL to your PostgreSQL instance
 
-Edit `.env`:
-
-```env
-DATABASE_URL=postgresql://username:password@localhost:5432/thermoshelter
-APP_NAME=ThermoShelter API
-DEBUG=true
-FRONTEND_ORIGINS=http://localhost:3000,http://localhost:5173
-```
-
----
-
-## PostgreSQL Setup
-
-### Create the database
-
-```bash
-psql -U postgres
-CREATE DATABASE thermoshelter;
-CREATE USER thermoshelter_user WITH PASSWORD 'yourpassword';
-GRANT ALL PRIVILEGES ON DATABASE thermoshelter TO thermoshelter_user;
-\q
-```
-
-Then update your `.env`:
-
-```env
-DATABASE_URL=postgresql://thermoshelter_user:yourpassword@localhost:5432/thermoshelter
-```
-
----
-
-## Database Migrations
-
-### Run existing migrations
-
-```bash
+# Apply migrations
 alembic upgrade head
+
+# Start API
+uvicorn app.main:app --reload
+# → http://localhost:8000/docs
 ```
 
-### Generate a new migration after model changes
+### Option B — Docker Compose (full stack)
 
 ```bash
-alembic revision --autogenerate -m "describe your change"
-alembic upgrade head
+cd backend
+docker-compose up --build
+# → API:    http://localhost:8000/docs
+# → Swagger: http://localhost:8000/redoc
 ```
 
-### Rollback one migration
-
-```bash
-alembic downgrade -1
-```
-
-> **Note:** On first startup the application automatically seeds default
-> materials (Concrete, Brick, Wood, Rock Wool, etc.) if the table is empty.
+Docker starts: PostgreSQL + Redis + FastAPI + Celery worker.
 
 ---
 
-## Running the Server
+## How to Run the Celery Worker (standalone)
+
+When `USE_BACKGROUND_JOBS=true`:
 
 ```bash
+# Terminal 1 — Redis (or use docker-compose redis service)
+redis-server
+
+# Terminal 2 — Celery worker
+cd backend
+source venv/bin/activate
+celery -A app.workers.celery_app worker --loglevel=info
+
+# Terminal 3 — FastAPI
 uvicorn app.main:app --reload
 ```
 
-The server starts at: **http://localhost:8000**
-
 ---
 
-## API Documentation
-
-Once the server is running:
-
-- **Swagger UI** → http://localhost:8000/docs
-- **ReDoc**       → http://localhost:8000/redoc
-
----
-
-## API Overview
+## API Reference
 
 ### Health
-
-| Method | Endpoint  | Description    |
-|--------|-----------|----------------|
-| GET    | /health   | Liveness probe |
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/health` | Liveness probe + feature flag status |
+| GET | `/docs` | Swagger UI |
 
 ### Projects
-
-| Method | Endpoint                        | Description          |
-|--------|---------------------------------|----------------------|
-| POST   | /api/projects                   | Create project       |
-| GET    | /api/projects                   | List all projects    |
-| GET    | /api/projects/{id}              | Get single project   |
-| PUT    | /api/projects/{id}              | Update project       |
-| DELETE | /api/projects/{id}              | Delete project       |
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/projects` | Create project |
+| GET | `/api/projects` | List projects |
+| GET | `/api/projects/{id}` | Get project detail |
+| PUT | `/api/projects/{id}` | Update project |
+| DELETE | `/api/projects/{id}` | Delete project |
 
 ### Climate
-
-| Method | Endpoint                              | Description              |
-|--------|---------------------------------------|--------------------------|
-| GET    | /api/climate-presets                  | Get climate presets      |
-| POST   | /api/projects/{id}/climate            | Create/upsert climate    |
-| GET    | /api/projects/{id}/climate            | Get climate profile      |
-| PUT    | /api/projects/{id}/climate            | Update climate profile   |
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/projects/{id}/climate` | Create/update climate profile |
+| GET | `/api/projects/{id}/climate` | Get climate profile |
+| PUT | `/api/projects/{id}/climate` | Update climate profile |
+| GET | `/api/climate-presets` | List preset climate profiles |
 
 ### Shelter
-
-| Method | Endpoint                              | Description              |
-|--------|---------------------------------------|--------------------------|
-| POST   | /api/projects/{id}/shelter            | Create/upsert shelter    |
-| GET    | /api/projects/{id}/shelter            | Get shelter config       |
-| PUT    | /api/projects/{id}/shelter            | Update shelter config    |
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/projects/{id}/shelter` | Create/update shelter config |
+| GET | `/api/projects/{id}/shelter` | Get shelter config |
+| PUT | `/api/projects/{id}/shelter` | Update shelter config |
 
 ### Materials
-
-| Method | Endpoint                    | Description                        |
-|--------|-----------------------------|------------------------------------|
-| GET    | /api/materials              | List materials (filter by category)|
-| GET    | /api/materials/{id}         | Get single material                |
-| POST   | /api/materials              | Create material                    |
-| PUT    | /api/materials/{id}         | Update material                    |
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/materials` | List materials (filter: `?category=wall`) |
+| POST | `/api/materials` | Create material |
+| GET | `/api/materials/{id}` | Get material |
+| PUT | `/api/materials/{id}` | Update material |
 
 ### Simulation
-
-| Method | Endpoint                                  | Description              |
-|--------|-------------------------------------------|--------------------------|
-| POST   | /api/projects/{id}/simulate               | Run simulation           |
-| GET    | /api/projects/{id}/simulations            | List simulation runs     |
-| GET    | /api/simulations/{run_id}                 | Get simulation + result  |
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/projects/{id}/simulate` | Start simulation → returns `{run_id, status}` |
+| GET | `/api/projects/{id}/simulations` | List all simulation runs |
+| GET | `/api/simulations/{run_id}/status` | **Poll status + progress** |
+| GET | `/api/simulations/{run_id}/result` | Get full result (when completed) |
+| GET | `/api/simulations/{run_id}` | Get run + result (backward-compat) |
 
 ### Optimization
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/projects/{id}/optimize` | Start optimization → returns `{run_id, status}` |
+| GET | `/api/optimization/{run_id}/status` | Poll status + progress |
+| GET | `/api/optimization/{run_id}/result` | Get candidates + winner |
 
-| Method | Endpoint                                  | Description              |
-|--------|-------------------------------------------|--------------------------|
-| POST   | /api/projects/{id}/optimize               | Run optimisation         |
-
-### Reports
-
-| Method | Endpoint                        | Description              |
-|--------|---------------------------------|--------------------------|
-| GET    | /api/projects/{id}/report       | Full project report      |
-
----
-
-## Critical Success Flow
-
-```
-POST /api/projects                    → Create project
-POST /api/projects/{id}/climate       → Configure climate
-POST /api/projects/{id}/shelter       → Configure shelter (with material IDs)
-GET  /api/materials                   → Browse/select materials
-POST /api/projects/{id}/simulate      → Run thermal simulation
-GET  /api/simulations/{run_id}        → View simulation results
-POST /api/projects/{id}/optimize      → Run optimisation
-GET  /api/projects/{id}/report        → Full project report
-```
+### Analysis & Report
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/projects/{id}/validate` | Pre-flight validation |
+| GET | `/api/projects/{id}/comparison` | Baseline vs optimized delta |
+| GET | `/api/projects/{id}/recommendation` | Explainable design recommendation |
+| GET | `/api/projects/{id}/report` | Full structured JSON report |
+| GET | `/api/projects/{id}/report/pdf` | PDF report (501 — not yet implemented) |
 
 ---
 
-## Simulation & Optimisation Architecture
-
-Both services use a **pluggable interface** pattern:
+## Simulation Flow
 
 ```
-FastAPI Router → service.run_*() → _mock_*()  [current]
-                                → _real_*()   [plug in when ready]
+POST /api/projects/{id}/simulate
+        ↓
+  Validate project (climate + shelter + materials)
+        ↓
+  Create SimulationRun (status=pending)
+        ↓
+  USE_BACKGROUND_JOBS=true? ──→ Queue Celery task ──→ status=queued
+                     ↓
+                  Redis
+                     ↓
+                  Worker
+                     ↓
+        Scientific Engine (physics/engine.py)
+                     ↓
+          Save SimulationResult → status=completed
+        
+  USE_BACKGROUND_JOBS=false?
+        ↓
+  Run synchronously → status=completed immediately
+        ↓
+  Return 202 {run_id, status, poll_url}
+        ↓
+  Frontend polls GET /api/simulations/{run_id}/status
+        ↓
+  GET /api/simulations/{run_id}/result  (when completed)
 ```
-
-To connect the real physics engine:
-1. Implement `_real_simulation()` in `app/services/simulation_service.py`
-2. Set `USE_MOCK_SIMULATION = False`
-3. Same pattern applies to `optimization_service.py`
 
 ---
 
-## Error Handling
+## Optimization Flow
 
-| Scenario                    | HTTP Status | Response                                                    |
-|-----------------------------|-------------|-------------------------------------------------------------|
-| Project not found           | 404         | `{"detail": "Project not found"}`                           |
-| Climate not configured      | 422         | `{"detail": "Climate profile is required..."}`              |
-| Shelter not configured      | 422         | `{"detail": "Shelter configuration is required..."}`        |
-| Invalid material ID         | 422         | `{"detail": "Material with id=X does not exist"}`           |
-| Duplicate material name     | 409         | `{"detail": "Material with name '...' already exists"}`     |
-| Simulation failure          | 500         | `{"detail": "Simulation failed: ..."}` + DB status=failed   |
-| Pydantic validation error   | 422         | FastAPI standard validation response                        |
+```
+POST /api/projects/{id}/optimize
+        ↓
+  Validate project
+        ↓
+  Create OptimizationRun (status=pending)
+        ↓
+  Queue / run Optimization Engine
+        ↓
+  Generate candidates → Score → Select winner
+        ↓
+  Save candidates + comparison_data + baseline_data
+        ↓
+  GET /api/optimization/{run_id}/result
+        ↓
+  GET /api/projects/{id}/comparison
+        ↓
+  GET /api/projects/{id}/recommendation
+        ↓
+  GET /api/projects/{id}/report
+```
+
+---
+
+## Global Data Contracts
+
+All layers use `app/schemas/contracts.py` as the single source of truth:
+
+- `SimulationRequest` / `SimulationResult`
+- `OptimizationRequest` / `OptimizationResult`
+- `ClimateInput` / `ShelterInput` / `MaterialInput`
+- `ValidationResult`
+- `ComparisonResult`
+- `JobAcceptedResponse` / `JobStatus`
+
+The scientific engine only imports from `app/scientific_engine/contracts.py`
+(which re-exports from the above) — keeping it decoupled from FastAPI.
+
+---
+
+## Scientific Engine Interface
+
+The physics team implements two functions in `app/scientific_engine/`:
+
+```python
+# physics/engine.py
+def run_transient_simulation(request: SimulationRequest) -> SimulationResult:
+    ...
+
+# optimization/engine.py  
+def run_optimization(request: OptimizationRequest) -> OptimizationResult:
+    ...
+```
+
+Set `USE_MOCK_SIMULATION=false` / `USE_MOCK_OPTIMIZATION=false` to activate.
+
+---
+
+## Database Schema
+
+8 tables:
+- `projects`, `climate_profiles`, `shelters`, `materials`
+- `simulation_runs` (status, task_id, execution_mode)
+- `simulation_results` (time-series JSONB, energy totals, comfort metrics)
+- `optimization_runs` (comparison_data, baseline_data JSONB)
+- `optimization_candidates` (config JSONB, scores, winner flag)

@@ -12,12 +12,16 @@ class OptimizationRun(Base):
     project_id: Mapped[int] = mapped_column(
         ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True
     )
-    objective_used: Mapped[str] = mapped_column(String(20), nullable=False)  # energy|comfort|cost|balanced
-    status: Mapped[str] = mapped_column(
-        String(20), nullable=False, default="pending"
-    )  # pending | running | completed | failed
+    objective_used: Mapped[str] = mapped_column(String(20), nullable=False)
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="pending")
+    task_id: Mapped[str | None] = mapped_column(String(255), nullable=True)   # Celery task ID
+    execution_mode: Mapped[str | None] = mapped_column(String(50), nullable=True)
     reasoning_text: Mapped[str | None] = mapped_column(Text, nullable=True)
     error_message: Mapped[str | None] = mapped_column(String(1024), nullable=True)
+
+    # Comparison and baseline data stored as JSONB
+    comparison_data: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    baseline_data: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
 
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
@@ -39,15 +43,11 @@ class OptimizationCandidate(Base):
         ForeignKey("optimization_runs.id", ondelete="CASCADE"), nullable=False, index=True
     )
 
-    # Flexible shelter configuration stored as JSONB
     config: Mapped[dict] = mapped_column(JSONB, nullable=False)
-
-    # Scores (0–100 scale)
     score: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
     comfort_score: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
     energy_score: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
     cost_score: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
-
     is_winner: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

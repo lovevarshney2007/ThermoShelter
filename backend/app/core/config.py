@@ -7,9 +7,20 @@ class Settings(BaseSettings):
     # Application
     APP_NAME: str = "ThermoShelter API"
     DEBUG: bool = False
+    API_VERSION: str = "2.0.0"
 
     # Database
     DATABASE_URL: str
+
+    # Redis / Celery
+    REDIS_URL: str = "redis://localhost:6379/0"
+    CELERY_BROKER_URL: str = "redis://localhost:6379/0"
+    CELERY_RESULT_BACKEND: str = "redis://localhost:6379/1"
+
+    # Feature flags
+    USE_BACKGROUND_JOBS: bool = False   # True = queue via Celery; False = synchronous fallback
+    USE_MOCK_SIMULATION: bool = True    # True = mock physics; False = real engine
+    USE_MOCK_OPTIMIZATION: bool = True  # True = mock optimizer; False = real engine
 
     # CORS origins — stored as comma-separated string in .env
     FRONTEND_ORIGINS: str = "http://localhost:3000,http://localhost:5173"

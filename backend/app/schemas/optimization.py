@@ -3,11 +3,11 @@ from typing import Literal, Any
 from pydantic import BaseModel, Field
 
 OptimizationObjectiveType = Literal["energy", "comfort", "cost", "balanced"]
-OptimizationStatusType = Literal["pending", "running", "completed", "failed"]
+OptimizationStatusType    = Literal["pending", "queued", "running", "completed", "failed"]
 
 
 class OptimizationRequest(BaseModel):
-    objective: OptimizationObjectiveType = Field("balanced", description="Optimisation objective")
+    objective: OptimizationObjectiveType = Field("balanced", description="Optimization objective")
 
 
 class OptimizationCandidateResponse(BaseModel):
@@ -29,10 +29,12 @@ class OptimizationRunResponse(BaseModel):
     project_id: int
     objective_used: OptimizationObjectiveType
     status: OptimizationStatusType
-    reasoning_text: str | None
-    error_message: str | None
-    started_at: datetime | None
-    completed_at: datetime | None
+    task_id: str | None = None
+    execution_mode: str | None = None
+    reasoning_text: str | None = None
+    error_message: str | None = None
+    started_at: datetime | None = None
+    completed_at: datetime | None = None
     created_at: datetime
 
     model_config = {"from_attributes": True}
