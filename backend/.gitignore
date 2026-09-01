@@ -16,9 +16,8 @@ venv/
 env/
 .env
 
-# Alembic
-alembic/versions/*.py
-!alembic/versions/.gitkeep
+# Alembic — track all migration scripts; only ignore compiled cache
+alembic/__pycache__/
 
 # IDE
 .idea/

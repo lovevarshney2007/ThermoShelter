@@ -25,4 +25,4 @@ COPY . .
 EXPOSE 8000
 
 # ── Default start command (overridden by Railway service config) ───────────────
-CMD ["sh", "-c", "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000"]
+CMD ["sh", "-c", "alembic upgrade head || (alembic stamp head && alembic upgrade head) && uvicorn app.main:app --host 0.0.0.0 --port 8000"]
