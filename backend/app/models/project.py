@@ -1,7 +1,16 @@
+from __future__ import annotations
+
 from datetime import datetime
+from typing import TYPE_CHECKING
 from sqlalchemy import String, Text, DateTime, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.database.base import Base
+
+if TYPE_CHECKING:
+    from app.models.climate import ClimateProfile
+    from app.models.shelter import Shelter
+    from app.models.simulation import SimulationRun
+    from app.models.optimization import OptimizationRun
 
 
 class Project(Base):

@@ -1,8 +1,14 @@
+from __future__ import annotations
+
 from datetime import datetime
+from typing import TYPE_CHECKING
 from sqlalchemy import String, Float, Boolean, Integer, ForeignKey, DateTime, Text, func
 from app.utils.db_types import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.database.base import Base
+
+if TYPE_CHECKING:
+    from app.models.project import Project
 
 
 class OptimizationRun(Base):

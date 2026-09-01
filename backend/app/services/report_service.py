@@ -64,7 +64,7 @@ def generate_report(project_id: int, db: Session) -> ProjectReport:
 
     # ── Shelter ───────────────────────────────────────────────────────────────
     report_shelter = None
-    materials = {"wall": None, "roof": None, "floor": None}
+    materials: dict[str, ReportMaterial | None] = {"wall": None, "roof": None, "floor": None}
     if project.shelter:
         s = project.shelter
         report_shelter = ReportShelter(

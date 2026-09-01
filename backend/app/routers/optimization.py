@@ -44,7 +44,7 @@ def _launch_optimization(
     if settings.USE_BACKGROUND_JOBS:
         try:
             from app.workers.optimization_tasks import execute_optimization
-            task = execute_optimization.delay(opt_run.id)
+            task = execute_optimization.delay(opt_run.id)  # type: ignore[attr-defined]
             opt_run.task_id = task.id
             opt_run.status  = RunStatus.QUEUED
             db.commit()
@@ -154,7 +154,7 @@ def get_optimization_status(optimization_run_id: int, db: Session = Depends(get_
         RunStatus.RUNNING:   50,
         RunStatus.COMPLETED: 100,
         RunStatus.FAILED:    0,
-    }.get(opt_run.status, 0)
+    }.get(RunStatus(opt_run.status), 0)
 
     return JobStatus(
         run_id=opt_run.id,
@@ -188,18 +188,23 @@ def get_optimization_result(optimization_run_id: int, db: Session = Depends(get_
         )
 
     winner = next((c for c in opt_run.candidates if c.is_winner), None)
+    from app.schemas.optimization import OptimizationCandidateResponse
     return OptimizationRunDetailResponse(
         id=opt_run.id,
         project_id=opt_run.project_id,
-        objective_used=opt_run.objective_used,
-        status=opt_run.status,
+        objective_used=opt_run.objective_used,  # type: ignore[arg-type]
+        status=opt_run.status,  # type: ignore[arg-type]
         reasoning_text=opt_run.reasoning_text,
         error_message=opt_run.error_message,
         started_at=opt_run.started_at,
         completed_at=opt_run.completed_at,
         created_at=opt_run.created_at,
-        winner=winner,
-        candidates=list(opt_run.candidates),
+        winner=OptimizationCandidateResponse.model_validate(winner, from_attributes=True)
+            if winner else None,
+        candidates=[
+            OptimizationCandidateResponse.model_validate(c, from_attributes=True)
+            for c in opt_run.candidates
+        ],
     )
 
 

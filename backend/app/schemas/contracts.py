@@ -194,6 +194,8 @@ class OptimizationResult(BaseModel):
     execution_mode: ExecutionMode = ExecutionMode.SYNCHRONOUS_FALLBACK
     created_at: datetime | None = None
 
+    model_config = ConfigDict(protected_namespaces=())
+
 
 # ══════════════════════════════════════════════════════════════════════════════
 # VALIDATION CONTRACT

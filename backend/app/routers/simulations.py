@@ -41,7 +41,7 @@ def _launch_simulation(sim_run: SimulationRun, project_id: int, db: Session) -> 
     if settings.USE_BACKGROUND_JOBS:
         try:
             from app.workers.simulation_tasks import execute_simulation
-            task = execute_simulation.delay(sim_run.id)
+            task = execute_simulation.delay(sim_run.id)  # type: ignore[attr-defined]
             sim_run.task_id = task.id
             sim_run.status  = RunStatus.QUEUED
             db.commit()
@@ -157,7 +157,7 @@ def get_simulation_status(simulation_run_id: int, db: Session = Depends(get_db))
         RunStatus.RUNNING:   50,
         RunStatus.COMPLETED: 100,
         RunStatus.FAILED:    0,
-    }.get(sim_run.status, 0)
+    }.get(RunStatus(sim_run.status), 0)
 
     return JobStatus(
         run_id=sim_run.id,

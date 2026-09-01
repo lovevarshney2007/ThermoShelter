@@ -4,7 +4,7 @@ Report schema — structured output for GET /api/projects/{id}/report
 
 from datetime import datetime
 from typing import Any
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.schemas.contracts import (
     ComparisonResult,
@@ -44,6 +44,8 @@ class ReportShelter(BaseModel):
 
 
 class ReportSimulation(BaseModel):
+    model_config = ConfigDict(protected_namespaces=())
+
     simulation_run_id: int
     status: str
     model_version: str
