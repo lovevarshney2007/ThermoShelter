@@ -1,0 +1,82 @@
+# render.yaml — Render Blueprint for ThermoShelter
+# Docs: https://render.com/docs/blueprint-spec
+
+services:
+  # ── PostgreSQL Database ──────────────────────────────────────────────────
+  - type: psql
+    name: thermoshelter-db
+    plan: free # Change to 'starter' for production
+    version: 15
+
+  # ── Redis (Broker & Result Backend) ──────────────────────────────────────
+  - type: redis
+    name: thermoshelter-redis
+    plan: free # Change to 'starter' for production
+    maxmemoryPolicy: noeviction
+
+  # ── FastAPI Web Service ──────────────────────────────────────────────────
+  - type: web
+    name: thermoshelter-api
+    env: docker
+    dockerfilePath: ./Dockerfile
+    plan: free
+    healthCheckPath: /health
+    # The default start command is in the Dockerfile
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: thermoshelter-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: thermoshelter-redis
+          property: connectionString
+      - key: CELERY_BROKER_URL
+        fromService:
+          type: redis
+          name: thermoshelter-redis
+          property: connectionString
+      - key: CELERY_RESULT_BACKEND
+        fromService:
+          type: redis
+          name: thermoshelter-redis
+          property: connectionString
+      - key: USE_BACKGROUND_JOBS
+        value: "true"
+      - key: USE_MOCK_SIMULATION
+        value: "true"
+      - key: USE_MOCK_OPTIMIZATION
+        value: "true"
+
+  # ── Celery Worker ────────────────────────────────────────────────────────
+  - type: worker
+    name: thermoshelter-worker
+    env: docker
+    dockerfilePath: ./Dockerfile
+    plan: free
+    dockerCommand: celery -A app.workers.celery_app worker --loglevel=info --concurrency=2
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: thermoshelter-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: thermoshelter-redis
+          property: connectionString
+      - key: CELERY_BROKER_URL
+        fromService:
+          type: redis
+          name: thermoshelter-redis
+          property: connectionString
+      - key: CELERY_RESULT_BACKEND
+        fromService:
+          type: redis
+          name: thermoshelter-redis
+          property: connectionString
+      - key: USE_MOCK_SIMULATION
+        value: "true"
+      - key: USE_MOCK_OPTIMIZATION
+        value: "true"
