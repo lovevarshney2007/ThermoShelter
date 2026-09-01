@@ -28,6 +28,9 @@ class Settings(BaseSettings):
     @field_validator("DATABASE_URL")
     @classmethod
     def validate_database_url(cls, v: str) -> str:
+        # Railway provides postgres:// — SQLAlchemy needs postgresql://
+        if v.startswith("postgres://"):
+            v = v.replace("postgres://", "postgresql://", 1)
         if not v.startswith("postgresql://") and not v.startswith("sqlite:///"):
             raise ValueError("DATABASE_URL must be a PostgreSQL or SQLite connection string")
         return v
