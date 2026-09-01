@@ -217,5 +217,12 @@ def seed_materials(db: Session) -> None:
 
 
 def init_db(db: Session) -> None:
-    """Run all initialisation steps."""
+    """Run all initialisation steps.
+
+    create_tables() acts as a safety net: SQLAlchemy's create_all() is a
+    no-op for tables that already exist, so it never conflicts with Alembic.
+    It protects against Railway deployments where Alembic's alembic_version
+    row exists but the DDL was never committed (e.g. first-deploy failures).
+    """
+    create_tables()   # safety net — idempotent, never drops existing tables
     seed_materials(db)
