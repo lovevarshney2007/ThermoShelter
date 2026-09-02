@@ -1,13 +1,13 @@
 # render.yaml — Render Blueprint for ThermoShelter
 # Docs: https://render.com/docs/blueprint-spec
 
-services:
+databases:
   # ── PostgreSQL Database ──────────────────────────────────────────────────
-  - type: psql
-    name: thermoshelter-db
+  - name: thermoshelter-db
     plan: free # Change to 'starter' for production
-    version: 15
+    postgresMajorVersion: "15"
 
+services:
   # ── Redis (Broker & Result Backend) ──────────────────────────────────────
   - type: redis
     name: thermoshelter-redis
