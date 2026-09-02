@@ -13,6 +13,7 @@ services:
     name: thermoshelter-redis
     plan: free # Change to 'starter' for production
     maxmemoryPolicy: noeviction
+    ipAllowList: [] # Only internal access allowed
 
   # ── FastAPI Web Service ──────────────────────────────────────────────────
   - type: web
