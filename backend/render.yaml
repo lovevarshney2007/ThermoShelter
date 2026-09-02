@@ -19,6 +19,7 @@ services:
   - type: web
     name: thermoshelter-api
     env: docker
+    rootDir: backend
     dockerfilePath: ./Dockerfile
     plan: free
     healthCheckPath: /health
@@ -54,6 +55,7 @@ services:
   - type: worker
     name: thermoshelter-worker
     env: docker
+    rootDir: backend
     dockerfilePath: ./Dockerfile
     plan: free
     dockerCommand: celery -A app.workers.celery_app worker --loglevel=info --concurrency=2
